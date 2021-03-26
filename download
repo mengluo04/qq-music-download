@@ -1,0 +1,42 @@
+import json
+import re
+from pathlib import Path
+
+import requests
+
+
+class Download():
+    def __init__(self, name):
+        self.music_query_url = 'https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp?platform=h5&w={}'.format(name)
+        self.detail_url = 'https://i.y.qq.com/v8/playsong.html?songmid={}'
+        self.headers = {
+            'authority': 'c.y.qq.com',
+            'Referer': 'https://i.y.qq.com/',
+            'Origin': 'https://i.y.qq.com/',
+            'user-agent': 'Mozilla/5.0 (Linux; Android 5.0; SM-G900P Build/LRX21T) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Mobile Safari/537.36'
+        }
+        self.dir = '/home/pi/sharedir/livemusic/'
+
+    def download(self, songname, url):
+        content = requests.get(url, headers=self.headers).content
+        with open(self.dir + songname + '.mp3', 'wb') as f:
+            f.write(content)
+
+    def param_music(self):
+        res = requests.get(self.music_query_url, headers=self.headers)
+        data_str = res.text.lstrip('callback(').rstrip(')')
+        data_dict = json.loads(data_str)
+        data = data_dict['data']
+        songs = data['song']['list']
+        self.get_paly_url(songs[0]['songmid'])
+
+    def get_paly_url(self, id):
+        res = requests.get(self.detail_url.format(id), headers=self.headers)
+        text = res.text
+        pattern = 'window.songlist = (.*?);.*'
+        re_text = re.search(pattern, text).group(1)
+        song_list = json.loads(re_text)
+        song_name = song_list[0]['songname']
+        play_url = song_list[0]['m4aUrl']
+        if not Path(Path(self.dir).joinpath(song_name + '.mp3')).exists():
+            self.download(song_name, play_url)
